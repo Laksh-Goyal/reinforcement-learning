@@ -149,3 +149,6 @@ data/
 logs/
 checkpoints/
 wandb/
+
+# Spinning Up (firedup) - cloned source and experiment outputs
+spinningup/
