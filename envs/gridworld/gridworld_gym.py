@@ -28,6 +28,12 @@ class GridWorldGym(gym.Env):
         self.agent_pos = [0, 0]  # Start at top-left
         self.goal_pos = [self.height - 1, self.width - 1]  # Goal at bottom-right
         self.render_mode = render_mode
+        
+        # Q-table: stores Q-values for each state-action pair (height, width, num_actions)
+        self.q_table = np.zeros((self.height, self.width, self.action_space.n))
+        
+        # Value table: stores the expected return for each state (height, width)
+        self.v_table = np.zeros((self.height, self.width))
 
     def reset(self, seed=None, options=None):
         # We need the following line to seed self.np_random
@@ -39,8 +45,7 @@ class GridWorldGym(gym.Env):
         obs = np.array(self.agent_pos, dtype=np.float32)
         info = {}
         
-        if self.render_mode == "human":
-            self.render()
+        self.render()
             
         return obs, info
 
@@ -64,8 +69,7 @@ class GridWorldGym(gym.Env):
         obs = np.array(self.agent_pos, dtype=np.float32)
         info = {}
         
-        if self.render_mode == "human":
-            self.render()
+        self.render()
             
         return obs, reward, terminated, truncated, info
 

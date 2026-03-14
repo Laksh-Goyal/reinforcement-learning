@@ -5,7 +5,13 @@ class GridWorld:
         self.width = width
         self.height = height
         self.agent_pos = [0, 0]  # Start at top-left
-        self.goal_pos = [width-1, height-1]  # Goal at bottom-right
+        self.goal_pos = [height-1, width-1]  # Goal at bottom-right
+        
+        # Q-table: stores Q-values for each state-action pair (height, width, num_actions)
+        self.q_table = np.zeros((height, width, 4))
+        
+        # Value table: stores the expected return for each state (height, width)
+        self.v_table = np.zeros((height, width))
 
     def reset(self):
         self.agent_pos = [0, 0]
@@ -28,8 +34,17 @@ class GridWorld:
         
         return tuple(self.agent_pos), reward, done
 
+    def render(self):
+        grid = np.full((self.height, self.width), ".", dtype=str)
+        grid[self.goal_pos[0], self.goal_pos[1]] = "G"
+        grid[self.agent_pos[0], self.agent_pos[1]] = "A"
+        print("\n" + "\n".join([" ".join(row) for row in grid]))
+        print("-" * (self.width * 2))
+
 # Usage
 env = GridWorld()
 state = env.reset()
+env.render()
 next_state, reward, done = env.step(1) # Move Down
 print(f"Moved to: {next_state}, Reward: {reward}")
+env.render()
