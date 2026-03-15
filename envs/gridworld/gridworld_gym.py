@@ -91,3 +91,85 @@ if __name__ == "__main__":
     print("\n=== STEP DOWN ===")
     obs, reward, terminated, truncated, info = env.step(1)
     print(f"Observation: {obs}, Reward: {reward}, Terminated: {terminated}")
+
+    env = GridWorldGym()
+    print("=== INITIAL STATE ===")
+    obs, info = env.reset()
+    print(f"Observation: {obs}")
+
+    # Q-Learning Hyperparameters
+    alpha = 0.1  # Learning rate
+    gamma = 0.99 # Discount factor
+    epsilon = 1.0 # Exploration rate
+    epsilon_decay = 0.995 # Decay rate for exploration
+    epsilon_min = 0.01 # Minimum exploration rate
+    episodes = 500 # Number of training episodes
+
+    def get_action(state, eps):
+        """Epsilon-greedy action selection."""
+        # state is a float array, cast indices to int for Q-table
+        s_r, s_c = int(state[0]), int(state[1])
+        if np.random.rand() < eps:
+            return np.random.randint(4)  # Explore: random action
+        else:
+            return np.argmax(env.q_table[s_r, s_c])  # Exploit: best action from Q-table
+
+    print("Training Q-Learning agent...")
+    for episode in range(episodes):
+        # Gym reset returns (obs, info)
+        state, info = env.reset()
+        done = False
+        
+        while not done:
+            action = get_action(state, epsilon)
+            # Gym step returns next_state, reward, terminated, truncated, info
+            next_state, reward, terminated, truncated, info = env.step(action)
+            done = terminated or truncated
+            
+            s_r, s_c = int(state[0]), int(state[1])
+            ns_r, ns_c = int(next_state[0]), int(next_state[1])
+            
+            # Bellman update for Q-table
+            if done:
+                td_target = reward
+            else:
+                td_target = reward + gamma * np.max(env.q_table[ns_r, ns_c])
+            
+            td_error = td_target - env.q_table[s_r, s_c, action]
+            env.q_table[s_r, s_c, action] += alpha * td_error
+            
+            # Update V-table (Value function is the max Q-value for the state)
+            env.v_table[s_r, s_c] = np.max(env.q_table[s_r, s_c])
+            
+            state = next_state
+            
+        # Decay epsilon after each episode
+        epsilon = max(epsilon_min, epsilon * epsilon_decay)
+
+    print("Training finished.\n")
+    print("Learned Value Table (V_table):")
+    print(np.round(env.v_table, 2))
+
+    # Test the learned policy
+    print("\nTesting learned policy:")
+    env.render_mode = "human"  # Enable rendering to visualize final agent movement
+    state, info = env.reset()
+    done = False
+    step_count = 0
+
+    while not done and step_count < 20: # Limit steps to prevent infinite loop
+        # Always exploit during testing
+        s_r, s_c = int(state[0]), int(state[1])
+        action = np.argmax(env.q_table[s_r, s_c])
+        
+        action_names = ["Up", "Down", "Left", "Right"]
+        print(f"\nAgent chose to move: {action_names[action]}")
+        
+        state, reward, terminated, truncated, info = env.step(action)
+        done = terminated or truncated
+        step_count += 1
+
+    if done:
+        print("Goal reached successfully!")
+    else:
+        print("Failed to reach the goal within the step limit.")
