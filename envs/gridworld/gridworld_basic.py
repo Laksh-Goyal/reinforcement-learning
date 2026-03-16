@@ -62,10 +62,12 @@ print("Training Q-Learning agent...")
 for episode in range(episodes):
     state = env.reset()
     done = False
+    total_reward = 0
     
     while not done:
         action = get_action(state, epsilon)
         next_state, reward, done = env.step(action)
+        total_reward += reward
         
         # Bellman update for Q-table
         if done:
@@ -80,7 +82,9 @@ for episode in range(episodes):
         env.v_table[state[0], state[1]] = np.max(env.q_table[state[0], state[1]])
         
         state = next_state
-        
+    
+    print(f"Episode {episode}: Total Reward = {total_reward}")
+
     # Decay epsilon after each episode
     epsilon = max(epsilon_min, epsilon * epsilon_decay)
 
