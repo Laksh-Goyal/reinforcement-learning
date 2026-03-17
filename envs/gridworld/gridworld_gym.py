@@ -1,6 +1,12 @@
+import sys
+import os
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
+
+# Add project root to path to allow importing utils
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from utils.replay_buffer import ReplayBuffer
 
 class GridWorldGym(gym.Env):
     """
@@ -104,6 +110,8 @@ if __name__ == "__main__":
     epsilon_decay = 0.995 # Decay rate for exploration
     epsilon_min = 0.01 # Minimum exploration rate
     episodes = 500 # Number of training episodes
+    batch_size = 32 # Batch size for replay buffer
+    buffer_capacity = 1000 # Maximum capacity of replay buffer
 
     def get_action(state, eps):
         """Epsilon-greedy action selection."""
@@ -115,6 +123,8 @@ if __name__ == "__main__":
             return np.argmax(env.q_table[s_r, s_c])  # Exploit: best action from Q-table
 
     print("Training Q-Learning agent...")
+    replay_buffer = ReplayBuffer(capacity=buffer_capacity)
+    
     for episode in range(episodes):
         # Gym reset returns (obs, info)
         state, info = env.reset()
@@ -126,10 +136,13 @@ if __name__ == "__main__":
             next_state, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
             
+            # 1. Add interaction to the replay buffer
+            replay_buffer.add(state, action, reward, next_state, done)
+            
             s_r, s_c = int(state[0]), int(state[1])
             ns_r, ns_c = int(next_state[0]), int(next_state[1])
             
-            # Bellman update for Q-table
+            # 2. Perform online Q-learning Bellman update step
             if done:
                 td_target = reward
             else:
@@ -137,6 +150,22 @@ if __name__ == "__main__":
             
             td_error = td_target - env.q_table[s_r, s_c, action]
             env.q_table[s_r, s_c, action] += alpha * td_error
+            
+            # 3. Perform Q-learning over a sampled batch from the buffer
+            if len(replay_buffer) >= batch_size:
+                b_states, b_actions, b_rewards, b_next_states, b_dones = replay_buffer.sample(batch_size)
+                
+                for b_s, b_a, b_r, b_ns, b_d in zip(b_states, b_actions, b_rewards, b_next_states, b_dones):
+                    bs_r, bs_c = int(b_s[0]), int(b_s[1])
+                    bns_r, bns_c = int(b_ns[0]), int(b_ns[1])
+                    
+                    if b_d:
+                        b_td_target = b_r
+                    else:
+                        b_td_target = b_r + gamma * np.max(env.q_table[bns_r, bns_c])
+                    
+                    b_td_error = b_td_target - env.q_table[bs_r, bs_c, b_a]
+                    env.q_table[bs_r, bs_c, b_a] += alpha * b_td_error
             
             # Update V-table (Value function is the max Q-value for the state)
             env.v_table[s_r, s_c] = np.max(env.q_table[s_r, s_c])
