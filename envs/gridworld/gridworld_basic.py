@@ -56,6 +56,8 @@ epsilon_min = 0.01 # Minimum exploration rate
 episodes = 500 # Number of training episodes
 batch_size = 32 # Batch size for replay buffer
 buffer_capacity = 1000 # Maximum capacity of replay buffer
+target_update_freq = 10 # Frequency (in episodes) to sync target Q-table
+
 
 env = GridWorld()
 
@@ -68,6 +70,9 @@ def get_action(state, eps):
 
 print("Training Q-Learning agent...")
 replay_buffer = ReplayBuffer(capacity=buffer_capacity)
+
+# Initialize Target Q-Table with a copy of the main Q-Table
+target_q_table = np.copy(env.q_table)
 
 for episode in range(episodes):
     state = env.reset()
@@ -89,7 +94,8 @@ for episode in range(episodes):
         if done:
             td_target = reward
         else:
-            td_target = reward + gamma * np.max(env.q_table[ns_r, ns_c])
+            # Use target_q_table to calculate the target
+            td_target = reward + gamma * np.max(target_q_table[ns_r, ns_c])
         
         td_error = td_target - env.q_table[s_r, s_c, action]
         env.q_table[s_r, s_c, action] += alpha * td_error
@@ -105,7 +111,8 @@ for episode in range(episodes):
                 if b_d:
                     b_td_target = b_r
                 else:
-                    b_td_target = b_r + gamma * np.max(env.q_table[bns_r, bns_c])
+                    # Use target_q_table to calculate the target
+                    b_td_target = b_r + gamma * np.max(target_q_table[bns_r, bns_c])
                 
                 b_td_error = b_td_target - env.q_table[bs_r, bs_c, b_a]
                 env.q_table[bs_r, bs_c, b_a] += alpha * b_td_error
@@ -116,6 +123,10 @@ for episode in range(episodes):
         state = next_state
     
     # print(f"Episode {episode}: Total Reward = {total_reward}")
+
+    # Periodic sync: Copy main Q-table to Target Q-table
+    if episode % target_update_freq == 0:
+        target_q_table = np.copy(env.q_table)
 
     # Decay epsilon after each episode
     epsilon = max(epsilon_min, epsilon * epsilon_decay)
