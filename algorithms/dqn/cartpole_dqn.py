@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import random
+import matplotlib.pyplot as plt
 
 # Add project root to path to import utils
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -108,10 +109,15 @@ def optimize_model():
     # Optional: Gradient clipping to prevent exploding gradients
     torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100)
     optimizer.step()
+    
+    return loss.item()
 
 # --- Training Loop ---
 epsilon = EPS_START
 consecutive_wins = 0 # Counter for early stopping
+
+episode_rewards = []
+episode_losses = []
 
 print(f"Starting DQN training on {env.spec.id}...")
 
@@ -119,6 +125,8 @@ for episode in range(EPISODES):
     state, _ = env.reset()
     total_reward = 0
     done = False
+    
+    step_losses = []
     
     while not done:
         action = select_action(state, epsilon)
@@ -131,10 +139,18 @@ for episode in range(EPISODES):
         total_reward += reward
         
         # Perform optimization step
-        optimize_model()
+        loss_val = optimize_model()
+        if loss_val is not None:
+            step_losses.append(loss_val)
 
     # Apply epsilon decay
     epsilon = max(EPS_END, EPS_DECAY * epsilon)
+    
+    episode_rewards.append(total_reward)
+    if step_losses:
+        episode_losses.append(np.mean(step_losses))
+    else:
+        episode_losses.append(0.0)
 
     # Periodic Sync (Hard Update)
     if episode % TARGET_UPDATE == 0:
@@ -156,10 +172,25 @@ for episode in range(EPISODES):
 print("Training finished!\n")
 env.close()
 
+# Plot the results
+fig, axs = plt.subplots(2, 1, figsize=(10, 8))
+axs[0].plot(episode_rewards, color='blue')
+axs[0].set_title('Episode Rewards')
+axs[0].set_ylabel('Reward')
+
+axs[1].plot(episode_losses, color='red')
+axs[1].set_title('Episode Average Loss')
+axs[1].set_xlabel('Episode')
+axs[1].set_ylabel('Loss')
+
+plt.tight_layout()
+plt.savefig('cartpole_dqn_results.png')
+print("Saved plot to cartpole_dqn_results.png\n")
+
 # --- Evaluation ---
 print("Testing trained agent...")
-# We initialize it with render_mode='human' to watch it play
-test_env = gym.make("CartPole-v1", render_mode="human")
+# We initialize it with render_mode=None for headless, change to 'human' if you want GUI
+test_env = gym.make("CartPole-v1", render_mode=None)
 state, _ = test_env.reset()
 done = False
 total_reward = 0

@@ -95,6 +95,30 @@ pyenv activate spinningup-env
 - `notebooks/` — Exploration and visualization
 - `tests/` — Unit and integration tests
 
+## Implemented Content
+
+### Custom Algorithms
+- **DQN with Replay Buffer & Target Network**: Implemented in `algorithms/dqn/cartpole_dqn.py`. It uses a custom `ReplayBuffer` located in `utils/replay_buffer.py`.
+- **Epsilon-Greedy Q-Learning**: Implemented for custom GridWorld navigation.
+
+### Custom Environments
+- **Basic GridWorld**: A discrete 2D grid environment in `envs/gridworld/gridworld_basic.py`.
+- **Gymnasium-Compatible GridWorld**: A standard Gym wrapper for the GridWorld environment located in `envs/gridworld/gridworld_gym.py`.
+
+### Results
+
+**CartPole DQN Training Results**
+![CartPole DQN Training Rewards and Loss](./cartpole_dqn_results.png)
+
+*Explanation:* 
+As seen in the plot above, the agent successfully learns to maximize the episodic reward across 1000 episodes, achieving the maximum score of 500 for CartPole-v1. 
+
+You may notice that the **Episodic Average Loss** does not smoothly decrease like it does in standard supervised learning. This is an expected characteristic of Deep Q-Learning due to:
+1. **Moving Targets:** The target network weights update periodically, causing sudden shifts in the expected values and triggering temporary spikes in the loss.
+2. **Bootstrapping and State Distribution:** As the agent survives longer, it encounters completely new, unfamiliar states with high initial Temporal Difference (TD) errors. The magnitude of predicted returns also scales up.
+
+In Reinforcement Learning, the **Episodic Reward** is the ultimate measure of convergence and performance, rather than the loss.
+
 ## Compatibility Notes
 
 - **Library:** `kashif/firedup` (PyTorch port) — not the original `openai/spinningup` (broken on Python 3.8+)
