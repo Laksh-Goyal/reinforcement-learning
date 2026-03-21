@@ -105,7 +105,16 @@ pyenv activate spinningup-env
 - **Basic GridWorld**: A discrete 2D grid environment in `envs/gridworld/gridworld_basic.py`.
 - **Gymnasium-Compatible GridWorld**: A standard Gym wrapper for the GridWorld environment located in `envs/gridworld/gridworld_gym.py`.
 
+### Classic Problems
+- **K-Armed Bandit**: A generalized 10-armed testbed environment (`envs/bandit/k_armed_bandit.py`) with standard Epsilon-Greedy and UCB (Upper Confidence Bound) algorithms (`algorithms/bandit/agents.py`).
+
 ### Results
+
+**Multi-Armed Bandit Comparison (UCB vs Epsilon-Greedy)**
+![Epsilon-Greedy vs UCB](./bandit_results.png)
+
+*Explanation:*
+The plot above demonstrates the performance of an Epsilon-Greedy agent ($\epsilon=0.1$) against a UCB agent ($c=2.0$) over 2,000 independent runs on an initially stationary 10-armed bandit testbed. UCB generally outperforms epsilon-greedy over time because it explicitly tracks uncertainties and naturally stops exploring arms that are definitively proven to be suboptimal, whereas $\epsilon$-greedy explores uniformly randomly forever.
 
 **CartPole DQN Training Results**
 ![CartPole DQN Training Rewards and Loss](./cartpole_dqn_results.png)
