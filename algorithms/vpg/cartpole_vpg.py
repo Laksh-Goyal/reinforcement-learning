@@ -35,10 +35,24 @@ class PolicyNetwork(nn.Module):
         # We'll just output the logits and use them in Categorical.
         return self.fc3(x)
 
+class ValueNetwork(nn.Module):
+    """Simple Multi-Layer Perceptron (MLP) for Value Network."""
+    def __init__(self, state_dim):
+        super(ValueNetwork, self).__init__()
+        self.fc1 = nn.Linear(state_dim, 128)
+        self.fc2 = nn.Linear(128, 128)
+        self.fc3 = nn.Linear(128, 1)
+
+    def forward(self, x):
+        x = torch.relu(self.fc1(x))
+        x = torch.relu(self.fc2(x))
+        return self.fc3(x)
+
 # --- Hyperparameters ---
 GAMMA = 0.99
 LR = 1e-3
 EPISODES = 1000
+USE_BASELINE = True  # Toggle to compare rewards with and without the value function baseline
 
 # Setup Environment
 env = gym.make("CartPole-v1")
@@ -48,6 +62,11 @@ action_dim = env.action_space.n
 # Initialize Policy Network
 policy_net = PolicyNetwork(state_dim, action_dim).to(device)
 optimizer = optim.Adam(policy_net.parameters(), lr=LR)
+
+# Initialize Value Network if using baseline
+if USE_BASELINE:
+    value_net = ValueNetwork(state_dim).to(device)
+    value_optimizer = optim.Adam(value_net.parameters(), lr=LR)
 
 def select_action(state):
     """Samples an action from the policy probability distribution."""
@@ -83,12 +102,14 @@ for episode in range(EPISODES):
     state, _ = env.reset()
     log_probs = []
     rewards = []
+    states = []
     
     done = False
     total_reward = 0
     
     # 1. Collect a trajectory
     while not done:
+        states.append(state)
         action, log_prob = select_action(state)
         next_state, reward, terminated, truncated, _ = env.step(action)
         done = terminated or truncated
@@ -102,24 +123,40 @@ for episode in range(EPISODES):
     episode_rewards.append(total_reward)
     
     # 2. Calculate discounted returns
-    returns = calculate_returns(rewards)
-    returns = torch.tensor(returns).to(device)
+    returns_list = calculate_returns(rewards)
+    returns = torch.tensor(returns_list, dtype=torch.float32).to(device)
     
-    # 3. Normalize returns (variance reduction)
+    if USE_BASELINE:
+        # Calculate values using the value network
+        states_tensor = torch.FloatTensor(np.array(states)).to(device)
+        values = value_net(states_tensor).squeeze(-1)
+        
+        # Calculate advantages
+        advantages = returns - values.detach()
+        
+        # Calculate value loss (MSE) and update value network
+        value_loss = nn.MSELoss()(values, returns)
+        value_optimizer.zero_grad()
+        value_loss.backward()
+        value_optimizer.step()
+    else:
+        advantages = returns
+    
+    # 3. Normalize advantages/returns (variance reduction)
     # Adding a small epsilon to standard deviation to avoid division by zero
-    returns = (returns - returns.mean()) / (returns.std() + 1e-9)
+    advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-9)
     
     # 4. Calculate policy gradient loss
-    # Loss = - E [ log(prob) * return ]
+    # Loss = - E [ log(prob) * advantage ]
     policy_loss = []
-    for log_prob, G_t in zip(log_probs, returns):
-        policy_loss.append(-log_prob * G_t)
+    for log_prob, adv in zip(log_probs, advantages):
+        policy_loss.append(-log_prob * adv)
         
     # Sum the loss for the entire episode
     policy_loss = torch.cat(policy_loss).sum()
     episode_losses.append(policy_loss.item())
 
-    # 5. Perform backpropagation and parameter update
+    # 5. Perform backpropagation and parameter update for policy network
     optimizer.zero_grad()
     policy_loss.backward()
     optimizer.step()
