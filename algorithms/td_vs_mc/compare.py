@@ -48,6 +48,36 @@ class TDZeroAgent(ValueEstimationAgent):
             
         self.v_table[r, c] += self.alpha * (target - self.v_table[r, c])
 
+class TDLambdaAgent(ValueEstimationAgent):
+    def __init__(self, env, alpha=0.1, gamma=0.99, lbda=0.9):
+        super().__init__(env, alpha, gamma)
+        self.lbda = lbda
+        self.e_table = np.zeros((env.height, env.width))
+
+    def reset_traces(self):
+        self.e_table.fill(0)
+
+    def update(self, state, reward, next_state, done):
+        r, c = int(state[0]), int(state[1])
+        nr, nc = int(next_state[0]), int(next_state[1])
+        
+        # TD error
+        if done:
+            td_target = reward
+        else:
+            td_target = reward + self.gamma * self.v_table[nr, nc]
+        
+        td_error = td_target - self.v_table[r, c]
+        
+        # Update eligibility trace (replacing trace)
+        self.e_table[r, c] = 1.0
+        
+        # Update all values based on current TD error and traces
+        self.v_table += self.alpha * td_error * self.e_table
+        
+        # Decay traces
+        self.e_table *= self.gamma * self.lbda
+
 def compute_true_v(env, gamma=0.99, threshold=1e-6):
     """Compute true value function for a random policy using iterative policy evaluation."""
     v = np.zeros((env.height, env.width))
@@ -79,49 +109,56 @@ def run_comparison(episodes=500):
     env = GridWorldGym()
     true_v = compute_true_v(env)
     
-    mc_agent = MonteCarloAgent(env)
-    td_agent = TDZeroAgent(env)
+    agents = {
+        'MC': MonteCarloAgent(env),
+        'TD(0)': TDZeroAgent(env),
+        'TD(0.5)': TDLambdaAgent(env, lbda=0.5),
+        'TD(0.9)': TDLambdaAgent(env, lbda=0.9)
+    }
     
-    mc_errors = []
-    td_errors = []
+    errors = {name: [] for name in agents}
     
     for ep in range(episodes):
-        # Monte Carlo Episode
+        # Monte Carlo Agent (Batch update)
         state, info = env.reset()
         trajectory = []
         done = False
         while not done:
-            action = mc_agent.get_action(state)
+            action = agents['MC'].get_action(state)
             next_state, reward, terminated, truncated, _ = env.step(action)
             trajectory.append((state, reward))
             state = next_state
             done = terminated or truncated
-        mc_agent.update(trajectory)
+        agents['MC'].update(trajectory)
         
-        # TD(0) Episode
-        state, info = env.reset()
-        done = False
-        while not done:
-            action = td_agent.get_action(state)
-            next_state, reward, terminated, truncated, _ = env.step(action)
-            td_agent.update(state, reward, next_state, terminated or truncated)
-            state = next_state
-            done = terminated or truncated
+        # TD-based Agents (Online updates)
+        for name, agent in agents.items():
+            if name == 'MC': continue
             
-        # Record RMS Error
-        mc_rmse = np.sqrt(np.mean((mc_agent.v_table - true_v)**2))
-        td_rmse = np.sqrt(np.mean((td_agent.v_table - true_v)**2))
-        
-        mc_errors.append(mc_rmse)
-        td_errors.append(td_rmse)
+            state, info = env.reset()
+            if hasattr(agent, 'reset_traces'):
+                agent.reset_traces()
+            done = False
+            while not done:
+                action = agent.get_action(state)
+                next_state, reward, terminated, truncated, _ = env.step(action)
+                agent.update(state, reward, next_state, terminated or truncated)
+                state = next_state
+                done = terminated or truncated
+            
+        # Record RMS Error for all agents
+        for name, agent in agents.items():
+            rmse = np.sqrt(np.mean((agent.v_table - true_v)**2))
+            errors[name].append(rmse)
         
     # Plot results
     plt.figure(figsize=(10, 6))
-    plt.plot(mc_errors, label='Monte Carlo (First-visit)')
-    plt.plot(td_errors, label='TD(0)')
+    for name, err_list in errors.items():
+        plt.plot(err_list, label=name)
+        
     plt.xlabel('Episodes')
     plt.ylabel('RMS Error')
-    plt.title('Convergence Analysis: TD(0) vs Monte Carlo')
+    plt.title('Convergence Analysis: TD(0) vs TD(λ) vs Monte Carlo')
     plt.legend()
     plt.grid(True)
     
@@ -131,11 +168,10 @@ def run_comparison(episodes=500):
     
     # Print final V-tables
     print("\nTrue Value Function:")
-    print(np.round(true_v, 2))
-    print("\nFinal MC Value Function:")
-    print(np.round(mc_agent.v_table, 2))
-    print("\nFinal TD(0) Value Function:")
-    print(np.round(td_agent.v_table, 2))
+    print(np.round(true_v, 2)) 
+    for name, agent in agents.items():
+        print(f"\nFinal {name} Value Function:")
+        print(np.round(agent.v_table, 2))
 
 if __name__ == "__main__":
     run_comparison()
