@@ -1,141 +1,246 @@
 # Reinforcement Learning
 
-A clean workspace for reinforcement learning algorithms and experiments.
+A clean, growing workspace for implementing and experimenting with reinforcement learning algorithms from scratch.
+
+---
 
 ## Overview
 
-This project is dedicated to implementing and testing various Reinforcement Learning (RL) techniques. It uses **fireup** (kashif's PyTorch port of OpenAI Spinning Up) as the core algorithm library.
+This project implements core RL algorithms step-by-step — from classic tabular methods to deep neural-network-based agents — tested on standard Gymnasium environments. Each algorithm is self-contained and documented with results.
 
-**Included algorithms:** VPG, PPO, TRPO, DDPG, TD3, SAC
+---
 
 ## Getting Started
 
 ### Prerequisites
 
 - macOS with [pyenv](https://github.com/pyenv/pyenv) installed
-- Python 3.10.18 available via pyenv (`pyenv install 3.10.18`)
+- Python 3.10.18 via pyenv (`pyenv install 3.10.18`)
 - [Homebrew](https://brew.sh/) and `swig` (`brew install swig`) — required for Box2D environments
 
 ### Setup
 
-#### Step 1 — Create the virtual environment
-
 ```bash
+# 1. Create virtual environment
 pyenv virtualenv 3.10.18 spinningup-env
-pyenv local spinningup-env   # writes .python-version
-```
+pyenv local spinningup-env      # writes .python-version
 
-#### Step 2 — Upgrade pip & install build tools
-
-```bash
+# 2. Upgrade pip & build tools
 pip install --upgrade pip setuptools wheel
-```
 
-#### Step 3 — Install PyTorch (CPU)
-
-```bash
+# 3. Install PyTorch (CPU)
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-```
 
-#### Step 4 — Install Gymnasium with extras
-
-```bash
+# 4. Install Gymnasium with extras
 pip install "gymnasium[classic-control,box2d]"
-```
 
-#### Step 5 — Clone and install firedup (Spinning Up)
-
-```bash
+# 5. Clone and install firedup (Spinning Up — PyTorch port)
 git clone https://github.com/kashif/firedup.git spinningup
 pip install --no-deps -e ./spinningup
 pip install scipy matplotlib seaborn pandas ipython joblib tqdm psutil mpi4py
-```
 
-> **Note:** We use `--no-deps` to avoid pulling in the old `gym` + `box2d-py` that firedup's setup.py requests. Gymnasium 1.x is already installed and compatible.
-
-#### Step 6 — Verify installation
-
-```bash
+# 6. Verify
 python -c "import fireup; import gymnasium; import torch; print('OK')"
 ```
 
-### Running an algorithm
-
-Train PPO on CartPole for 50 epochs:
-
-```bash
-python -m fireup.algos.ppo.ppo --env CartPole-v1 --epochs 50 --cpu 1
-```
-
-Train VPG on LunarLander (Box2D):
-
-```bash
-python -m fireup.algos.vpg.vpg --env LunarLander-v3 --epochs 100 --cpu 1
-```
-
-Train SAC on a continuous control environment:
-
-```bash
-python -m fireup.algos.sac.sac --env Pendulum-v1 --epochs 50
-```
+> **Note:** `--no-deps` prevents firedup pulling in the old `gym` + `box2d-py`. Gymnasium 1.x is already installed and compatible.
 
 ### Activating the environment
 
-The `.python-version` file in the project root makes pyenv automatically use `spinningup-env`. You can also activate manually:
+The `.python-version` file makes pyenv automatically use `spinningup-env`. Manual activation:
 
 ```bash
 pyenv activate spinningup-env
 ```
 
+---
+
 ## Project Structure
 
-- `spinningup/` — Firedup source (gitignored, cloned from kashif/firedup)
-- `src/` — Custom algorithm implementations
-- `envs/` — Custom environment definitions
-- `notebooks/` — Exploration and visualization
-- `tests/` — Unit and integration tests
+```
+reinforcement-learning/
+├── algorithms/
+│   ├── bandit/          # K-Armed Bandit agents (Epsilon-Greedy, UCB)
+│   ├── dqn/             # Deep Q-Network implementations
+│   ├── vpg/             # Vanilla Policy Gradient
+│   ├── ppo/             # Proximal Policy Optimization
+│   └── td_vs_mc/        # TD(0) vs Monte Carlo comparison
+├── envs/
+│   ├── bandit/          # K-Armed Bandit environment
+│   └── gridworld/       # Custom GridWorld environments + FrozenLake Q-Learning
+├── models/              # Saved model checkpoints (gitignored)
+│   └── dqn/
+│       └── mountaincar/ # policy_ep<N>_<timestamp>.pt
+├── utils/
+│   └── replay_buffer.py # Shared experience replay buffer
+├── spinningup/          # Firedup source (gitignored)
+└── tests/
+```
 
-## Implemented Content
+---
 
-### Custom Algorithms
-- **DQN with Replay Buffer & Target Network**: Implemented in `algorithms/dqn/cartpole_dqn.py`. It uses a custom `ReplayBuffer` located in `utils/replay_buffer.py`.
-- **Epsilon-Greedy Q-Learning**: Implemented for custom GridWorld navigation.
+## Implemented Algorithms
 
-### Custom Environments
-- **Basic GridWorld**: A discrete 2D grid environment in `envs/gridworld/gridworld_basic.py`.
-- **Gymnasium-Compatible GridWorld**: A standard Gym wrapper for the GridWorld environment located in `envs/gridworld/gridworld_gym.py`.
+### 1. K-Armed Bandit — `algorithms/bandit/`
 
-### Classic Problems
-- **K-Armed Bandit**: A generalized 10-armed testbed environment (`envs/bandit/k_armed_bandit.py`) with standard Epsilon-Greedy and UCB (Upper Confidence Bound) algorithms (`algorithms/bandit/agents.py`).
+**Environment:** Custom 10-Armed Bandit — `envs/bandit/k_armed_bandit.py`
 
-### Results
+Two exploration strategies compared over 2,000 independent runs on a stationary testbed:
 
-**Multi-Armed Bandit Comparison (UCB vs Epsilon-Greedy)**
-![Epsilon-Greedy vs UCB](./bandit_results.png)
+| Agent | Strategy |
+|---|---|
+| Epsilon-Greedy | Explores uniformly at random with probability ε = 0.1 |
+| UCB | Selects based on upper confidence bound with c = 2.0 |
 
-*Explanation:*
-The plot above demonstrates the performance of an Epsilon-Greedy agent ($\epsilon=0.1$) against a UCB agent ($c=2.0$) over 2,000 independent runs on an initially stationary 10-armed bandit testbed. UCB generally outperforms epsilon-greedy over time because it explicitly tracks uncertainties and naturally stops exploring arms that are definitively proven to be suboptimal, whereas $\epsilon$-greedy explores uniformly randomly forever.
+**Result:**
 
-**CartPole DQN Training Results**
-![CartPole DQN Training Rewards and Loss](./cartpole_dqn_results.png)
+![Bandit Results](./bandit_results.png)
 
-*Explanation:* 
-As seen in the plot above, the agent successfully learns to maximize the episodic reward across 1000 episodes, achieving the maximum score of 500 for CartPole-v1. 
+UCB outperforms Epsilon-Greedy over time because it explicitly tracks uncertainty per arm and naturally stops exploring arms that are definitively suboptimal. Epsilon-Greedy continues random exploration indefinitely regardless of knowledge gained.
 
-You may notice that the **Episodic Average Loss** does not smoothly decrease like it does in standard supervised learning. This is an expected characteristic of Deep Q-Learning due to:
-1. **Moving Targets:** The target network weights update periodically, causing sudden shifts in the expected values and triggering temporary spikes in the loss.
-2. **Bootstrapping and State Distribution:** As the agent survives longer, it encounters completely new, unfamiliar states with high initial Temporal Difference (TD) errors. The magnitude of predicted returns also scales up.
+---
 
-In Reinforcement Learning, the **Episodic Reward** is the ultimate measure of convergence and performance, rather than the loss.
+### 2. Tabular Q-Learning — `envs/gridworld/`
+
+**Environments:**
+- Custom `GridWorld` — `gridworld_basic.py` / `gridworld_gym.py`
+- `FrozenLake-v1` — `frozen_lake_q_learning.py`
+
+Classic tabular Q-Learning with epsilon-greedy exploration on discrete grid environments. Demonstrates the foundations of value-based RL before scaling to neural networks.
+
+**FrozenLake Result:**
+
+![FrozenLake Q-Learning](./frozenlake_qlearning_results.png)
+
+---
+
+### 3. TD(0) vs Monte Carlo — `algorithms/td_vs_mc/compare.py`
+
+**Environment:** Custom GridWorld
+
+A direct comparison of two fundamental prediction methods:
+
+| Method | Update Rule |
+|---|---|
+| Monte Carlo | Updates from full episode returns — high variance, no bias |
+| TD(0) | Bootstraps from the next state — lower variance, biased |
+
+**Result:**
+
+![TD vs MC](./algorithms/td_vs_mc/td_vs_mc_results.png)
+
+---
+
+### 4. Deep Q-Network (DQN) — `algorithms/dqn/`
+
+A DQN implementation with:
+- Experience Replay (`utils/replay_buffer.py`)
+- Separate Target Network (synced every N episodes)
+- Huber loss (robust to large TD-errors)
+- Gradient clipping
+- Reward shaping
+
+#### 4a. CartPole — `cartpole_dqn.py`
+
+**Environment:** `CartPole-v1`
+
+| Hyperparameter | Value |
+|---|---|
+| Batch Size | 64 |
+| γ (Gamma) | 0.99 |
+| ε decay | 0.995 |
+| LR | 1e-3 |
+| Memory | 10,000 |
+
+**Result:**
+
+![CartPole DQN](./cartpole_dqn_results.png)
+
+The agent successfully learns to balance the pole, achieving the maximum score of 500 consistently. The loss does not monotonically decrease — this is expected in DQN due to moving targets and bootstrapping from new states as the agent survives longer.
+
+#### 4b. MountainCar — `mountaincar_dqn.py`
+
+**Environment:** `MountainCar-v0` — a notoriously hard sparse-reward problem. The car must build kinetic energy by oscillating back and forth; the native reward is always −1 until reaching the flag.
+
+| Hyperparameter | Value |
+|---|---|
+| Batch Size | 128 |
+| γ (Gamma) | 0.99 |
+| ε decay | 0.995 |
+| LR | 1e-3 |
+| Memory | 50,000 |
+| Episodes | 2,000 |
+
+**Reward Shaping** (breaks the sparse reward problem):
+
+```python
+velocity_bonus = abs(velocity) * 10          # encourage building speed
+position_bonus = (position + 1.2) ** 2       # quadratic pull toward the flag
+goal_bonus     = 50.0 if terminated else 0.0 # explicit success signal
+shaped_reward  = reward + velocity_bonus + position_bonus + goal_bonus
+```
+
+**Result:**
+
+![MountainCar DQN](./models/dqn/mountaincar/training_results.png)
+
+The agent solved the environment (consistently reaching reward ≥ −110) around episode ~1,116, achieving test rewards in the range of **−88 to −107** across multiple evaluation runs.
+
+**Train / Test CLI:**
+
+```bash
+# Train a new agent (automatically saves to models/dqn/mountaincar/)
+python algorithms/dqn/mountaincar_dqn.py --mode train
+
+# Test the latest saved agent
+python algorithms/dqn/mountaincar_dqn.py --mode test
+
+# Test a specific checkpoint
+python algorithms/dqn/mountaincar_dqn.py --mode test --model-path models/dqn/mountaincar/policy_ep1116_20260405_171435.pt
+```
+
+Checkpoints are saved as `models/<algorithm>/<environment>/policy_ep<N>_<YYYYMMDD_HHMMSS>.pt`. When no `--model-path` is given, the most recent `.pt` file is loaded automatically.
+
+---
+
+### 5. Vanilla Policy Gradient (VPG) — `algorithms/vpg/cartpole_vpg.py`
+
+**Environment:** `CartPole-v1`
+
+A policy-gradient implementation using REINFORCE with a learned baseline. Directly optimises the policy parameters using gradient ascent on the expected return.
+
+**Result:**
+
+![CartPole VPG](./cartpole_vpg_results.png)
+
+---
+
+### 6. Proximal Policy Optimization (PPO) — `algorithms/ppo/cartpole_ppo.py`
+
+**Environment:** `CartPole-v1`
+
+An actor-critic PPO implementation with:
+- Generalised Advantage Estimation (GAE)
+- Clipped surrogate objective (clip ε = 0.2)
+- Separate actor and critic networks
+- Multiple update epochs per rollout
+
+**Result:**
+
+![CartPole PPO](./algorithms/ppo/cartpole_ppo_results.png)
+
+---
 
 ## Compatibility Notes
 
-- **Library:** `kashif/firedup` (PyTorch port) — not the original `openai/spinningup` (broken on Python 3.8+)
-- **Python:** 3.10.18 via pyenv
-- **Gymnasium:** 1.2.3 (modern fork of OpenAI Gym)
-- **PyTorch:** 2.10.0 (CPU build)
-- **MuJoCo:** Not installed. Classic-control and Box2D environments are fully supported.
+| Component | Version |
+|---|---|
+| Python | 3.10.18 (via pyenv) |
+| Gymnasium | 1.2.3 |
+| PyTorch | 2.x (CPU or MPS on Apple Silicon) |
+| Firedup (Spinning Up) | kashif/firedup — PyTorch port |
+| MuJoCo | Not installed |
 
-## License
+> Apple Silicon (MPS) is automatically detected and used if available. Falls back to CPU.
 
-MIT
+---
